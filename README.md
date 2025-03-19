@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# crackulator
-=======
 # Crackulator
 
 A CLI tool for password strength analysis and cracking time estimation.
@@ -84,4 +81,3 @@ The tool calculates:
 - Total possible combinations
 - Estimated time to crack the password
 - A human-readable assessment of the password's security
->>>>>>> 896586b (Added docs)
