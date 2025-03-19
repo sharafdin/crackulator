@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/sharafdin/crackulator/common"
 	"github.com/sharafdin/crackulator/hash"
@@ -234,26 +236,26 @@ func main() {
 	
 	// Print cracking difficulty
 	fmt.Println("\n🔢 BRUTE FORCE COMPLEXITY:")
-	fmt.Printf("Possible combinations: %s\n", combinations.String())
+	fmt.Printf("Possible combinations: %s\n", formatBigInt(combinations))
 	
 	// Print hash information
 	fmt.Println("\n🔐 HASH INFORMATION:")
 	fmt.Printf("Selected algorithm: %s\n", selectedHash)
 	fmt.Printf("Selected system: %s\n", selectedSystem)
-	fmt.Printf("Theoretical hash speed: %d hashes/second\n", theoreticalHashSpeed)
+	fmt.Printf("Theoretical hash speed: %s hashes/second\n", formatInt64(theoreticalHashSpeed))
 	
 	if runBenchmark {
-		fmt.Printf("Your computer's benchmark: %d hashes/second\n", benchmarkedHashSpeed)
+		fmt.Printf("Your computer's benchmark: %s hashes/second\n", formatInt64(benchmarkedHashSpeed))
 	}
 	
 	fmt.Printf("Sample hash output: %x\n", hashedPassword)
 	
 	// Print cracking time estimation
 	fmt.Println("\n⏱️  CRACKING TIME ESTIMATION:")
-	fmt.Printf("For %s (theoretical): %s %s\n", selectedSystem, theoreticalTimeString, theoreticalTimeUnit)
+	fmt.Printf("For %s (theoretical): %s %s\n", selectedSystem, formatTimeString(theoreticalTimeString), theoreticalTimeUnit)
 	
 	if runBenchmark {
-		fmt.Printf("For your computer (benchmarked): %s %s\n", benchmarkedTimeString, benchmarkedTimeUnit)
+		fmt.Printf("For your computer (benchmarked): %s %s\n", formatTimeString(benchmarkedTimeString), benchmarkedTimeUnit)
 	}
 	
 	fmt.Printf("Security assessment: %s\n", interpretation)
@@ -269,4 +271,99 @@ func formatBool(b bool) string {
 		return "Yes"
 	}
 	return "No"
+}
+
+// formatInt64 formats large integers with commas or suffixes to make them more readable
+func formatInt64(n int64) string {
+    // For small numbers, just add commas
+    if n < 1000000 {
+        return formatWithCommas(n)
+    }
+    
+    // For larger numbers, use appropriate suffixes
+    if n < 1000000000 {
+        // Million
+        return fmt.Sprintf("%.2f million", float64(n)/1000000)
+    } else {
+        // Billion
+        return fmt.Sprintf("%.2f billion", float64(n)/1000000000)
+    }
+}
+
+// formatBigInt formats big integers to be more readable
+func formatBigInt(n *big.Int) string {
+    // Convert to string
+    str := n.String()
+    
+    // If it's a huge number, use scientific notation
+    if len(str) > 15 {
+        // Convert to big float for scientific notation
+        bf := new(big.Float).SetInt(n)
+        // Find the order of magnitude (approximate)
+        magnitude := len(str) - 1
+        // Divide by 10^magnitude to get a number between 1 and 10
+        divisor := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(magnitude)), nil))
+        result := new(big.Float).Quo(bf, divisor)
+        
+        // Format as scientific notation
+        resultStr := fmt.Sprintf("%.2f × 10^%d", result, magnitude)
+        return resultStr
+    }
+    
+    // For smaller big integers, just use commas
+    return addCommasToString(str)
+}
+
+// formatTimeString makes time values more readable
+func formatTimeString(timeStr string) string {
+    // Try to convert to float
+    val, err := strconv.ParseFloat(timeStr, 64)
+    if err != nil {
+        // If not numeric, just return the original
+        return timeStr
+    }
+    
+    // Format with commas and 2 decimal places if it's a large value
+    if val >= 1000 {
+        // Round to the nearest whole number for large values
+        intVal := int64(val)
+        return formatWithCommas(intVal)
+    }
+    
+    // For smaller values, keep decimal places
+    return fmt.Sprintf("%.2f", val)
+}
+
+// formatWithCommas adds commas to int64 values
+func formatWithCommas(n int64) string {
+    return addCommasToString(strconv.FormatInt(n, 10))
+}
+
+// addCommasToString adds commas as thousands separators
+func addCommasToString(str string) string {
+    // Find the decimal point position if any
+    decimalPos := strings.Index(str, ".")
+    
+    var intPart string
+    var decimalPart string
+    
+    if decimalPos >= 0 {
+        intPart = str[:decimalPos]
+        decimalPart = str[decimalPos:]
+    } else {
+        intPart = str
+        decimalPart = ""
+    }
+    
+    // Add commas to the integer part
+    var result []byte
+    for i, c := range intPart {
+        if i > 0 && (len(intPart)-i)%3 == 0 {
+            result = append(result, ',')
+        }
+        result = append(result, byte(c))
+    }
+    
+    // Add back the decimal part if any
+    return string(result) + decimalPart
 } 
