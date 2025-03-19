@@ -50,13 +50,22 @@ var systemHashSpeeds = map[string]map[string]int64{
 }
 
 func main() {
+	// Clear the screen and print welcome message
+	fmt.Print("\033[H\033[2J") // ANSI escape code to clear screen
+	fmt.Println("=================================================================")
+	fmt.Println("  🔐 Welcome to Crackulator - Password Cracking Time Estimator 🔐")
+	fmt.Println("=================================================================")
+	fmt.Println()
+
 	// Define command-line flags
 	passwordFlag := flag.String("p", "", "Password to analyze")
 	flag.Parse()
 
 	passwordInput := *passwordFlag
 
-	// If no password provided via flag, prompt user for input
+	// === DATA COLLECTION PHASE ===
+	
+	// 1. Get password input
 	if passwordInput == "" {
 		passwordInput = utils.GetPasswordInput()
 	}
@@ -67,41 +76,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Analyze the password
+	// 2. Analyze the password
 	length, hasLower, hasUpper, hasDigit, hasSpecial := password.AnalyzePassword(passwordInput)
-	
-	// Calculate and display password strength
 	strength := password.GetStrength(passwordInput, length, hasLower, hasUpper, hasDigit, hasSpecial)
-	fmt.Printf("\n🔍 Password Analysis:\n")
-	fmt.Printf("Length: %d characters\n", length)
-	fmt.Printf("Contains lowercase letters: %t\n", hasLower)
-	fmt.Printf("Contains uppercase letters: %t\n", hasUpper)
-	fmt.Printf("Contains digits: %t\n", hasDigit)
-	fmt.Printf("Contains special characters: %t\n", hasSpecial)
-	fmt.Printf("Strength rating: %s\n", strength)
-
-	// Check if user wants to check against common passwords
-	if utils.AskYesNo("Do you want to check against common passwords? (y/n)") {
-		checkType := utils.AskOption("Choose check type:", []string{"Local file", "Online URL"})
+	
+	// 3. Check for common password
+	checkCommonPassword := utils.AskYesNo("Do you want to check against common passwords? (y/n)")
+	
+	var checkType, filePath, url string
+	var isCommon bool
+	
+	if checkCommonPassword {
+		checkType = utils.AskOption("Choose check type:", []string{"Local file", "Online URL"})
 		
-		var isCommon bool
 		if checkType == "Local file" {
-			filePath := utils.AskInput("Enter path to password file:")
-			isCommon = common.CheckLocal(passwordInput, filePath)
+			filePath = utils.AskInput("Enter path to password file:")
 		} else {
-			url := utils.AskInput("Enter URL of password list:")
-			isCommon = common.CheckOnline(passwordInput, url)
-		}
-		
-		if isCommon {
-			fmt.Println("\n⚠️ WARNING: This password appears in common password lists!")
-			fmt.Println("It is highly recommended to choose a different password.")
-		} else {
-			fmt.Println("\n✅ Good news! Your password was not found in the common password list.")
+			url = utils.AskInput("Enter URL of password list:")
 		}
 	}
 
-	// Hash type selection
+	// 4. Hash algorithm selection
 	fmt.Println("\n🔐 Hash Algorithm Selection:")
 	fmt.Println("Different hash algorithms have different cracking speeds.")
 	fmt.Println("Fast hashes (MD5, SHA-1, SHA-256) are quicker to crack.")
@@ -110,61 +105,72 @@ func main() {
 	hashOptions := hash.GetHashOptions()
 	selectedHash := utils.AskOption("Select a hash algorithm:", hashOptions)
 	
-	fmt.Printf("\nSelected hash algorithm: %s\n", selectedHash)
-	
-	// Calculate character set size and possible combinations
-	charsetSize := password.CharsetSize(hasLower, hasUpper, hasDigit, hasSpecial)
-	combinations := password.CalculateCombinations(length, charsetSize)
-	
-	fmt.Printf("\n📊 Password Complexity:\n")
-	fmt.Printf("Character set size: %d\n", charsetSize)
-	fmt.Printf("Possible combinations: %s\n", combinations.String())
-	
-	// System selection and hash speed determination
+	// 5. System selection
 	fmt.Println("\n💻 System Selection:")
 	fmt.Println("Select the type of system you want to simulate for password cracking:")
 	systemOptions := []string{"Slow PC", "Normal PC", "High-end GPU"}
 	selectedSystem := utils.AskOption("Choose system type:", systemOptions)
 	
-	// Use predefined hash speeds based on system type
-	hashSpeed := systemHashSpeeds[selectedSystem][selectedHash]
-	fmt.Printf("\n📝 Using estimated hash speed for %s: %d hashes/second for %s\n", selectedSystem, hashSpeed, selectedHash)
+	// 6. Benchmarking option
+	runBenchmark := utils.AskYesNo("\nDo you want to benchmark your actual system's hash speed? (y/n)")
 	
-	// Ask if user wants to benchmark
-	if utils.AskYesNo("\nDo you want to benchmark your actual system's hash speed instead? (y/n)") {
-		// Run benchmark
-		result := hash.RunBenchmark(selectedHash)
-		hashSpeed = result.HashesPerSecond
-		fmt.Printf("\n🚀 Benchmark Results:\n")
-		fmt.Printf("Your system can compute %d %s hashes per second\n", hashSpeed, selectedHash)
+	// === PROCESSING PHASE ===
+	
+	// 1. Calculate character set size and possible combinations
+	charsetSize := password.CharsetSize(hasLower, hasUpper, hasDigit, hasSpecial)
+	combinations := password.CalculateCombinations(length, charsetSize)
+	
+	// 2. Perform common password check if requested
+	if checkCommonPassword {
+		if checkType == "Local file" {
+			isCommon = common.CheckLocal(passwordInput, filePath)
+		} else {
+			isCommon = common.CheckOnline(passwordInput, url)
+		}
 	}
 	
-	// Estimate crack time
-	timeString, timeUnit, _ := password.EstimateCrackTime(combinations, hashSpeed)
+	// 3. Determine hash speed (theoretical and benchmarked)
+	theoreticalHashSpeed := systemHashSpeeds[selectedSystem][selectedHash]
 	
-	fmt.Printf("\n⏱️ Cracking Time Estimation:\n")
-	fmt.Printf("Estimated time to crack: %s %s\n", timeString, timeUnit)
+	// Variables for benchmarked values
+	var benchmarkedHashSpeed int64
+	var benchmarkResult hash.BenchmarkResult
 	
-	// Create a simple interpretation based on the time
-	var interpretation string
+	if runBenchmark {
+		fmt.Println("\nRunning benchmark, please wait...")
+		benchmarkResult = hash.RunBenchmark(selectedHash)
+		benchmarkedHashSpeed = benchmarkResult.HashesPerSecond
+	}
+	
+	// 4. Calculate cracking time (for both theoretical and benchmarked speeds)
+	theoreticalTimeString, theoreticalTimeUnit, _ := password.EstimateCrackTime(combinations, theoreticalHashSpeed)
+	
+	// Only calculate benchmarked time if benchmark was run
+	var benchmarkedTimeString, benchmarkedTimeUnit string
+	if runBenchmark {
+		benchmarkedTimeString, benchmarkedTimeUnit, _ = password.EstimateCrackTime(combinations, benchmarkedHashSpeed)
+	}
+	
+	// 5. Create interpretation for theoretical time
 	seconds := new(big.Float).SetInt64(0)
 	
-	if timeUnit == "seconds" {
-		seconds, _ = new(big.Float).SetString(timeString)
-	} else if timeUnit == "minutes" {
-		mins, _ := new(big.Float).SetString(timeString)
+	if theoreticalTimeUnit == "seconds" {
+		seconds, _ = new(big.Float).SetString(theoreticalTimeString)
+	} else if theoreticalTimeUnit == "minutes" {
+		mins, _ := new(big.Float).SetString(theoreticalTimeString)
 		seconds = new(big.Float).Mul(mins, big.NewFloat(60))
-	} else if timeUnit == "hours" {
-		hours, _ := new(big.Float).SetString(timeString)
+	} else if theoreticalTimeUnit == "hours" {
+		hours, _ := new(big.Float).SetString(theoreticalTimeString)
 		seconds = new(big.Float).Mul(hours, big.NewFloat(3600))
-	} else if timeUnit == "days" {
-		days, _ := new(big.Float).SetString(timeString)
+	} else if theoreticalTimeUnit == "days" {
+		days, _ := new(big.Float).SetString(theoreticalTimeString)
 		seconds = new(big.Float).Mul(days, big.NewFloat(86400))
-	} else if timeUnit == "years" {
-		years, _ := new(big.Float).SetString(timeString)
+	} else if theoreticalTimeUnit == "years" {
+		years, _ := new(big.Float).SetString(theoreticalTimeString)
 		seconds = new(big.Float).Mul(years, big.NewFloat(31557600))
 	}
 	
+	var interpretation string
 	if seconds.Cmp(big.NewFloat(60)) < 0 {
 		interpretation = "Extremely Weak: This password would be cracked instantly!"
 	} else if seconds.Cmp(big.NewFloat(3600)) < 0 { // < 1 hour
@@ -183,12 +189,84 @@ func main() {
 		interpretation = "Excellent: This password would take decades or more to crack."
 	}
 	
-	fmt.Printf("Assessment: %s\n", interpretation)
-	
-	// Sample hash output
+	// 6. Generate hash sample
 	hashFunction := hash.Types[selectedHash]
 	passwordBytes := []byte(passwordInput)
 	hashedPassword := hashFunction(passwordBytes)
 	
-	fmt.Printf("\nSample hash output (%s): %x\n", selectedHash, hashedPassword)
+	// === REPORT PHASE ===
+	
+	// Clear screen again for the report
+	fmt.Print("\033[H\033[2J")
+	
+	// Print header
+	fmt.Println("=================================================================")
+	fmt.Println("                  🔒 PASSWORD ANALYSIS REPORT 🔒                  ")
+	fmt.Println("=================================================================")
+	
+	// Print password summary
+	fmt.Println("\n📋 PASSWORD SUMMARY:")
+	fmt.Printf("Password: %s\n", passwordInput)
+	fmt.Printf("Length: %d characters\n", length)
+	
+	// Print character types
+	fmt.Println("\n🔤 CHARACTER COMPOSITION:")
+	fmt.Printf("Lowercase letters (a-z): %s\n", formatBool(hasLower))
+	fmt.Printf("Uppercase letters (A-Z): %s\n", formatBool(hasUpper))
+	fmt.Printf("Digits (0-9): %s\n", formatBool(hasDigit))
+	fmt.Printf("Special characters: %s\n", formatBool(hasSpecial))
+	fmt.Printf("Character set size: %d\n", charsetSize)
+	
+	// Print strength rating
+	fmt.Println("\n💪 STRENGTH ASSESSMENT:")
+	fmt.Printf("Basic strength rating: %s\n", strength)
+	
+	// Print common password check results
+	if checkCommonPassword {
+		fmt.Println("\n🔍 COMMON PASSWORD CHECK:")
+		if isCommon {
+			fmt.Println("⚠️  WARNING: This password appears in common password lists!")
+			fmt.Println("    It is highly recommended to choose a different password.")
+		} else {
+			fmt.Println("✅  Good news! Your password was not found in the common password list.")
+		}
+	}
+	
+	// Print cracking difficulty
+	fmt.Println("\n🔢 BRUTE FORCE COMPLEXITY:")
+	fmt.Printf("Possible combinations: %s\n", combinations.String())
+	
+	// Print hash information
+	fmt.Println("\n🔐 HASH INFORMATION:")
+	fmt.Printf("Selected algorithm: %s\n", selectedHash)
+	fmt.Printf("Selected system: %s\n", selectedSystem)
+	fmt.Printf("Theoretical hash speed: %d hashes/second\n", theoreticalHashSpeed)
+	
+	if runBenchmark {
+		fmt.Printf("Your computer's benchmark: %d hashes/second\n", benchmarkedHashSpeed)
+	}
+	
+	fmt.Printf("Sample hash output: %x\n", hashedPassword)
+	
+	// Print cracking time estimation
+	fmt.Println("\n⏱️  CRACKING TIME ESTIMATION:")
+	fmt.Printf("For %s (theoretical): %s %s\n", selectedSystem, theoreticalTimeString, theoreticalTimeUnit)
+	
+	if runBenchmark {
+		fmt.Printf("For your computer (benchmarked): %s %s\n", benchmarkedTimeString, benchmarkedTimeUnit)
+	}
+	
+	fmt.Printf("Security assessment: %s\n", interpretation)
+	
+	fmt.Println("\n=================================================================")
+	fmt.Println("                       END OF REPORT                            ")
+	fmt.Println("=================================================================")
+}
+
+// formatBool returns "Yes" for true and "No" for false
+func formatBool(b bool) string {
+	if b {
+		return "Yes"
+	}
+	return "No"
 } 
