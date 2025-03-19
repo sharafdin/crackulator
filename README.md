@@ -20,10 +20,13 @@ crackulator/
 ├── utils/          # Utility functions
 ├── go.mod          # Go module definition
 ├── main.go         # Main application
+├── Dockerfile      # Docker configuration
 └── README.md       # Documentation
 ```
 
 ## Installation
+
+### Standard Installation
 
 ```bash
 # Clone the repository
@@ -36,7 +39,22 @@ cd crackulator
 go build
 ```
 
+### Docker Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/sharafdin/crackulator.git
+
+# Navigate to the project directory
+cd crackulator
+
+# Build the Docker image
+docker build -t crackulator .
+```
+
 ## Usage
+
+### Standard Usage
 
 ```bash
 # Analyze a password interactively
@@ -44,6 +62,16 @@ go build
 
 # Analyze a password directly
 ./crackulator -p "your_password_here"
+```
+
+### Docker Usage
+
+```bash
+# Run interactively
+docker run -it crackulator
+
+# Run with a password argument
+docker run -it crackulator -p "your_password_here"
 ```
 
 ### Common Password Checking

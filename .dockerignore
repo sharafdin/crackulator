@@ -1,0 +1,14 @@
+# Git files
+.git
+.gitignore
+
+# Build artifacts
+crackulator
+
+# Markdown files (except README)
+*.md
+!README.md
+
+# Docker files
+Dockerfile
+.dockerignore 
